@@ -1,0 +1,46 @@
+{
+    "id": "weather",
+    "name": "Weather",
+    "version": "1.0.0",
+    "description": "Current conditions and a 3- or 7-day forecast for a ZIP code, from Open-Meteo.",
+    "entry": "widget.js",
+    "icon": "icon.png",
+    "defaultSize": { "w": 960, "h": 440 },
+    "parameters": {
+        "zip": {
+            "type": "string",
+            "label": "ZIP / postal code",
+            "pattern": "[A-Za-z0-9][A-Za-z0-9 -]{1,9}",
+            "maxLength": 10
+        },
+        "country": {
+            "type": "string",
+            "label": "Country code",
+            "help": "Two capital letters, e.g. US. Keeps a ZIP code from matching a postal code in another country.",
+            "pattern": "[A-Z]{2}",
+            "default": "US"
+        },
+        "place_name": { "type": "string", "label": "Place name (blank = from the ZIP code)", "maxLength": 60 },
+        "mode": { "type": "enum", "label": "Show", "options": ["current", "3-day", "7-day"], "default": "3-day" },
+        "units": { "type": "enum", "label": "Units", "options": ["fahrenheit", "celsius"], "default": "fahrenheit" },
+        "color": { "type": "color", "label": "Text color", "default": "#ffffff" },
+        "background": { "type": "color", "label": "Background", "default": "#0c4a6e" },
+        "background_opacity": { "type": "number", "label": "Background opacity (0–1)", "min": 0, "max": 1, "step": 0.05, "default": 0.7 }
+    },
+    "endpoints": {
+        "geocode": {
+            "url": "https://geocoding-api.open-meteo.com/v1/search?name={zip}&count=1&countryCode={country}&format=json",
+            "expect": "json",
+            "ttl": 86400
+        },
+        "forecast": {
+            "url": "https://api.open-meteo.com/v1/forecast?latitude={arg:lat}&longitude={arg:lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit={units}&wind_speed_unit=kmh&timezone=auto&forecast_days=7",
+            "expect": "json",
+            "ttl": 1800,
+            "args": {
+                "lat": { "type": "number", "min": -90, "max": 90 },
+                "lon": { "type": "number", "min": -180, "max": 180 }
+            }
+        }
+    }
+}

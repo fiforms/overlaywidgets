@@ -2,10 +2,10 @@
 
 A widget is a small JavaScript program that draws live content (a clock, a calendar, a forecast) on top of a slide. A site admin installs it. Slide editors then place it on an overlay, set its size and position, and fill in its parameters. They never upload code.
 
-The two folders next to this file, [clock/](clock/) and [calendar/](calendar/), are complete working examples. Install them with:
+The folders next to this file, [clock/](clock/), [calendar/](calendar/) and [weather/](weather/), are complete working examples. Install them with:
 
 ```bash
-php artisan widget:install resources/widgets/clock resources/widgets/calendar
+sudo -u www-data php artisan widget:install resources/widgets/clock resources/widgets/calendar resources/widgets/weather
 ```
 
 You can also zip a widget's folder and upload it at **Admin → Widgets**.
@@ -78,6 +78,23 @@ Browsers usually can't fetch other sites directly, because of CORS. The server a
   - The host is fixed when the widget is installed.
   - Parameter values are percent-encoded into the path or query, so they can't change the host.
   - `{secret:api_key}` inserts an admin-entered setting. Secrets are filled in on the server and never reach the browser.
+  - `{arg:lat}` inserts a **runtime arg**: a value your code passes at fetch time, for something that isn't known when the slide is saved. For example, the weather widget geocodes the saved ZIP code, then passes the coordinates to its forecast endpoint. Declare every arg on the endpoint:
+
+    ```json
+    "forecast": {
+      "url": "https://api.open-meteo.com/v1/forecast?latitude={arg:lat}&longitude={arg:lon}",
+      "expect": "json",
+      "args": {
+        "lat": { "type": "number", "min": -90, "max": 90 },
+        "lon": { "type": "number", "min": -180, "max": 180 }
+      }
+    }
+    ```
+
+    - Args may be `number`, `enum`, `boolean` or `string`, and a `string` arg must have a `pattern`.
+    - They're allowed only in fixed-host templates, they're percent-encoded like parameters, and each distinct value is cached separately.
+    - A missing or invalid arg is rejected with `invalid_args`, unless the arg declares a `default`.
+    - Round values where you can (the weather widget uses two decimal places), so nearby screens share the cache.
 - **`expect`** sets what the response must be and what your widget receives:
   - `ical`: the feed is parsed on the server, and you get `{ name, timezone, events: [{ uid, title, location, description, start, end, all_day }] }`. Recurring events are expanded within `days` (default 60). All-day `start`/`end` values are `YYYY-MM-DD` with an exclusive end. Timed events are ISO-8601 instants.
   - `json`: the response must be valid JSON, and you get the parsed value.
@@ -107,7 +124,7 @@ export function mount(el, { width, height, params, api }) {
 - **Cleanup is required.** The host calls the function you return when the slide advances, the lightbox closes or the editor preview changes. Stop every timer, interval and pending request there. Slideshows run all day, so leaked timers add up.
 - `params` holds the validated parameter values, with defaults filled in. It is frozen.
 - `api` provides:
-  - `api.fetch(endpointName)` resolves to `{ data, fetched_at, stale }`. If it fails, it rejects with an error whose `.reason` is one of `not_configured`, `rate_limited`, `invalid_response`, `blocked_url`, `upstream_status` and similar. Show a friendly message, and keep showing the last data you had.
+  - `api.fetch(endpointName, args?)` resolves to `{ data, fetched_at, stale }`. `args` is an object of runtime args, for example `{ lat: 34.07, lon: -118.4 }`. If it fails, it rejects with an error whose `.reason` is one of `not_configured`, `invalid_args`, `rate_limited`, `invalid_response`, `blocked_url`, `upstream_status` and similar. Show a friendly message, and keep showing the last data you had.
   - `api.storage.get(key)`, `.set(key, value)` and `.remove(key)` store JSON values in localStorage, kept separate for each placement.
   - `api.locale` is the viewer's UI locale (for example `en` or `es`), for `Intl` formatting.
   - `api.mode` is `'live'` on screens and `'editor'` in the overlay editor's live preview.
