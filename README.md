@@ -113,6 +113,7 @@ export function mount(el, { width, height, params, api }) {
   - `api.mode` is `'live'` on screens and `'editor'` in the overlay editor's live preview.
 - Widgets always appear above the overlay's other layers.
 - Static thumbnails and PowerPoint exports show your `preview` image, or your `icon`, in the widget's box.
+- Slide Announcer devices run widgets too. They keep a local copy of your package, so it keeps working through internet outages. `api.fetch` goes through the device to the server, and the device serves the last good response while offline, with `stale: true`. Don't count on anything outside your package loading on a device, such as CDN scripts or web fonts: list everything you need in the package.
 
 ## Rules for widget code
 
