@@ -39,6 +39,11 @@ function parseEnd(event) {
     }
     return new Date(event.end);
 }
+// Last calendar day an event touches (all-day ends are exclusive, and a timed
+// event ending exactly at midnight doesn't reach into that day).
+function lastDay(event) {
+    return new Date(parseEnd(event).getTime() - 1);
+}
 const dayKey = date => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
 export function mount(el, { width, height, params, api }) {
@@ -93,7 +98,7 @@ export function mount(el, { width, height, params, api }) {
 
         const rowH = (height - top - pad) / events.length;
         const size = Math.min(rowH * 0.36, width * 0.045);
-        const dateW = size * 6.2;
+        const dateW = size * 7.4;
         const dateFormat = new Intl.DateTimeFormat(api.locale, { weekday: 'short', month: 'short', day: 'numeric' });
         const timeFormat = new Intl.DateTimeFormat(api.locale, { hour: 'numeric', minute: '2-digit' });
 
@@ -104,7 +109,13 @@ export function mount(el, { width, height, params, api }) {
                 x: pad, y: y + rowH * 0.42, 'font-family': 'sans-serif', 'font-weight': 'bold',
                 'font-size': size, fill: accent,
             }, svg, dateFormat.format(start));
-            if (!event.all_day) {
+            const end = lastDay(event);
+            if (dayKey(end) !== dayKey(start)) {
+                node('text', {
+                    x: pad, y: y + rowH * 0.42 + size * 1.15, 'font-family': 'sans-serif', 'font-weight': 'bold',
+                    'font-size': size, fill: accent,
+                }, svg, `- ${dateFormat.format(end)}`);
+            } else if (!event.all_day) {
                 node('text', {
                     x: pad, y: y + rowH * 0.42 + size * 1.15, 'font-family': 'sans-serif',
                     'font-size': size * 0.8, fill: color, opacity: 0.75,
