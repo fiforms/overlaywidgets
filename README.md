@@ -126,6 +126,11 @@ export function mount(el, { width, height, params, api }) {
 - `api` provides:
   - `api.fetch(endpointName, args?)` resolves to `{ data, fetched_at, stale }`. `args` is an object of runtime args, for example `{ lat: 34.07, lon: -118.4 }`. If it fails, it rejects with an error whose `.reason` is one of `not_configured`, `invalid_args`, `rate_limited`, `invalid_response`, `blocked_url`, `upstream_status` and similar. Show a friendly message, and keep showing the last data you had.
   - `api.storage.get(key)`, `.set(key, value)` and `.remove(key)` store JSON values in localStorage, kept separate for each placement.
+  - `api.location` is where the screen is: `{ name, latitude, longitude, source }`, or `null`.
+    - It's the screen's church when that church has coordinates (`source: 'entity'`, `name` like "Wilmington, NC"). That's the device's church on a Slide Announcer, or the church a web page is showing.
+    - Otherwise it's the site's default location from Admin → Widgets (`source: 'default'`).
+    - Use it so one global slide can show each church local information. The weather widget does this when its ZIP code is blank. Pass the coordinates to an endpoint as runtime args.
+    - If it's `null` on a live screen, consider drawing nothing rather than an error.
   - `api.locale` is the viewer's UI locale (for example `en` or `es`), for `Intl` formatting.
   - `api.mode` is `'live'` on screens and `'editor'` in the overlay editor's live preview.
 - Widgets always appear above the overlay's other layers.

@@ -3,7 +3,10 @@
 //
 // Two server-fetched endpoints (see manifest.json): `geocode` turns the
 // saved ZIP code into a place and coordinates, then `forecast` is called
-// with those coordinates as runtime args. Everything is drawn as SVG built
+// with those coordinates as runtime args. With the ZIP left blank, the
+// coordinates come from api.location instead — the screen's own church, or
+// the site's default location — so one global slide shows each church its
+// local weather. Everything is drawn as SVG built
 // with createElementNS/textContent — never innerHTML.
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -13,7 +16,9 @@ const RETRY_MS = 5 * 60 * 1000;
 const TEXT = {
     en: {
         today: 'Today', feels: 'Feels like', humidity: 'Humidity', wind: 'Wind',
-        setZip: 'Add a ZIP code', notFound: 'Location not found', unavailable: 'Weather unavailable',
+        notFound: 'Location not found', unavailable: 'Weather unavailable',
+        screenHint: name => `Blank ZIP: each screen shows its church's weather · preview: ${name}`,
+        noLocation: 'Blank ZIP: each screen will show its own church\'s weather. This page has no location to preview.',
         conditions: {
             clear: 'Clear', mostlyClear: 'Mostly clear', partly: 'Partly cloudy', overcast: 'Overcast',
             fog: 'Fog', drizzle: 'Drizzle', freezingDrizzle: 'Freezing drizzle', rain: 'Rain',
@@ -23,7 +28,9 @@ const TEXT = {
     },
     es: {
         today: 'Hoy', feels: 'Sensación', humidity: 'Humedad', wind: 'Viento',
-        setZip: 'Agrega un código postal', notFound: 'Ubicación no encontrada', unavailable: 'Clima no disponible',
+        notFound: 'Ubicación no encontrada', unavailable: 'Clima no disponible',
+        screenHint: name => `Sin código postal: cada pantalla muestra el clima de su iglesia · vista previa: ${name}`,
+        noLocation: 'Sin código postal: cada pantalla mostrará el clima de su iglesia. Esta página no tiene ubicación para la vista previa.',
         conditions: {
             clear: 'Despejado', mostlyClear: 'Mayormente despejado', partly: 'Parcialmente nublado', overcast: 'Nublado',
             fog: 'Niebla', drizzle: 'Llovizna', freezingDrizzle: 'Llovizna helada', rain: 'Lluvia',
@@ -181,6 +188,9 @@ export function mount(el, { width, height, params, api }) {
     const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' }, el);
     const uid = `wx${Math.random().toString(36).slice(2, 8)}`;
     const pad = Math.min(width, height) * 0.06;
+    // Blank ZIP = use the screen's location (api.location).
+    const useScreen = !params.zip;
+    const editor = api.mode === 'editor';
 
     let place = null;
     let weather = null;
@@ -190,6 +200,9 @@ export function mount(el, { width, height, params, api }) {
 
     function render() {
         svg.replaceChildren();
+        // Nothing to say on a live screen (e.g. a global slide on a page with
+        // no church and no default location): draw nothing at all.
+        if (!weather && !message) return;
         defs(svg, uid);
         const opacity = Number(params.background_opacity ?? 0.7);
         if (opacity > 0) {
@@ -197,11 +210,20 @@ export function mount(el, { width, height, params, api }) {
         }
 
         if (!weather) {
-            const size = Math.min(height * 0.12, width * 0.06);
-            node('text', {
-                x: width / 2, y: height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+            // Word-wrapped, centred.
+            const size = Math.min(height * 0.1, width * 0.05);
+            const perLine = Math.max(8, Math.floor((width - pad * 2) / (size * GLYPH)));
+            const lines = [];
+            for (const word of message.split(' ')) {
+                const last = lines[lines.length - 1];
+                if (last && `${last} ${word}`.length <= perLine) lines[lines.length - 1] = `${last} ${word}`;
+                else lines.push(word);
+            }
+            lines.forEach((line, i) => node('text', {
+                x: width / 2, y: height / 2 + (i - (lines.length - 1) / 2) * size * 1.3,
+                'text-anchor': 'middle', 'dominant-baseline': 'central',
                 'font-family': 'sans-serif', 'font-size': size, fill: color, opacity: 0.85,
-            }, svg, message ?? '');
+            }, svg, line));
             return;
         }
 
@@ -214,6 +236,14 @@ export function mount(el, { width, height, params, api }) {
             x: width - pad * 0.6, y: height - pad * 0.45, 'text-anchor': 'end', 'font-family': 'sans-serif',
             'font-size': credit, fill: color, opacity: 0.45,
         }, svg, 'Weather data: Open-Meteo.com');
+
+        // Editor preview only: make the blank-ZIP behaviour explicit.
+        if (editor && useScreen) {
+            node('text', {
+                x: pad * 0.6, y: height - pad * 0.45, 'font-family': 'sans-serif', 'font-size': credit,
+                fill: '#fde68a',
+            }, svg, fit(text.screenHint(place.name), credit, width - pad * 1.2 - credit * GLYPH * 30));
+        }
     }
 
     function degrees(value) {
@@ -223,6 +253,7 @@ export function mount(el, { width, height, params, api }) {
     function placeLabel() {
         if (params.place_name) return params.place_name;
         if (!place) return '';
+        if (place.fromScreen) return place.name;
         return [place.name, place.country_code === 'US' ? place.admin1 : place.country].filter(Boolean).join(', ');
     }
 
@@ -336,6 +367,13 @@ export function mount(el, { width, height, params, api }) {
     async function load() {
         timer = null;
         try {
+            if (!place && useScreen) {
+                if (!api.location) {
+                    message = editor ? text.noLocation : null;
+                    return;
+                }
+                place = { name: api.location.name, latitude: api.location.latitude, longitude: api.location.longitude, fromScreen: true };
+            }
             if (!place) {
                 const geo = await api.fetch('geocode');
                 place = geo.data?.results?.[0] ?? null;
@@ -355,7 +393,7 @@ export function mount(el, { width, height, params, api }) {
         } catch (err) {
             if (disposed) return;
             // Keep showing the last forecast through a transient failure.
-            if (!weather) message = err.reason === 'not_configured' ? text.setZip : text.unavailable;
+            if (!weather) message = text.unavailable;
         } finally {
             if (!disposed) {
                 render();

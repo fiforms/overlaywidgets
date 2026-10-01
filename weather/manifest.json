@@ -1,15 +1,16 @@
 {
     "id": "weather",
     "name": "Weather",
-    "version": "1.0.0",
-    "description": "Current conditions and a 3- or 7-day forecast for a ZIP code, from Open-Meteo.",
+    "version": "1.1.0",
+    "description": "Current conditions and a 3- or 7-day forecast, for a ZIP code or each screen's own location, from Open-Meteo.",
     "entry": "widget.js",
     "icon": "icon.png",
     "defaultSize": { "w": 960, "h": 440 },
     "parameters": {
         "zip": {
             "type": "string",
-            "label": "ZIP / postal code",
+            "label": "ZIP / postal code (blank = each screen's church)",
+            "help": "Leave blank on a global slide: every screen then shows the weather for its own church's location, or the site's default location (Admin → Widgets) when its church has none.",
             "pattern": "[A-Za-z0-9][A-Za-z0-9 -]{1,9}",
             "maxLength": 10
         },
