@@ -1,0 +1,31 @@
+{
+    "id": "calendar",
+    "name": "Calendar",
+    "version": "1.0.0",
+    "description": "Upcoming events from a public calendar feed (ICS), as a list or a month grid.",
+    "entry": "widget.js",
+    "icon": "icon.png",
+    "defaultSize": { "w": 800, "h": 600 },
+    "parameters": {
+        "ics": {
+            "type": "url",
+            "label": "Calendar feed (ICS) address",
+            "help": "In Google Calendar: Settings → your calendar → \"Public address in iCal format\".",
+            "allow": [
+                "https://calendar.google.com/calendar/ical/",
+                "https://outlook.office365.com/owa/calendar/",
+                "https://outlook.live.com/owa/calendar/"
+            ]
+        },
+        "mode": { "type": "enum", "label": "Layout", "options": ["list", "month"], "default": "list" },
+        "title": { "type": "string", "label": "Heading (blank = calendar name)", "maxLength": 80 },
+        "max_events": { "type": "number", "label": "Events to show (list)", "min": 1, "max": 20, "step": 1, "default": 6 },
+        "color": { "type": "color", "label": "Text color", "default": "#ffffff" },
+        "accent": { "type": "color", "label": "Accent color", "default": "#fbbf24" },
+        "background": { "type": "color", "label": "Background", "default": "#0f172a" },
+        "background_opacity": { "type": "number", "label": "Background opacity (0–1)", "min": 0, "max": 1, "step": 0.05, "default": 0.75 }
+    },
+    "endpoints": {
+        "events": { "url": "{ics}", "expect": "ical", "ttl": 900, "days": 62 }
+    }
+}
