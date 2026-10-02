@@ -1,11 +1,12 @@
 {
     "id": "weather",
     "name": "Weather",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Current conditions and a 3- or 7-day forecast, for a ZIP code or each screen's own location, from Open-Meteo.",
     "entry": "widget.js",
     "icon": "icon.png",
     "defaultSize": { "w": 960, "h": 440 },
+    "usesLocation": true,
     "parameters": {
         "zip": {
             "type": "string",

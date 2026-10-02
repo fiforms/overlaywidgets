@@ -124,6 +124,7 @@ my-widget/
 | `preview` | no | Path of a `.png`, `.webp` or `.jpg`. Used instead of the icon wherever a host can only show a still image. |
 | `defaultSize` | no | `{ "w", "h" }` in pixels, integers. `w` is 10–1920 and `h` is 10–1080. Default `{ "w": 400, "h": 300 }`. The size a new placement starts with. |
 | `aspectLocked` | no | `true` asks editors to keep the width:height ratio when resizing. Default `false`. |
+| `usesLocation` | no | `true` declares that the widget reads [`api.location`](#apilocation) (the screen's own location). Hosts that export a widget's placement as static data, rather than running it live, use this to know they must supply a location with it. Default `false`. |
 | `parameters` | no | Values slide editors fill in. See below. |
 | `settings` | no | Values the host's administrator fills in once for everyone, such as an API key. See below. |
 | `endpoints` | no | Outside data requests the host may make for the widget. See below. |
