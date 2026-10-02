@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Widget examples</title>
+<style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #0b1020; color: #e5e7eb; }
+    header, main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 0; font-size: 1.5rem; }
+    h2 { font-size: 1.05rem; margin: 0 0 8px; }
+    p { margin: 4px 0 12px; color: #9ca3af; }
+    code { background: #1f2937; padding: 1px 5px; border-radius: 4px; }
+    .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 10px; padding: 14px; }
+    /* A checkerboard so semi-transparent widget backgrounds are visible, like over a slide. */
+    .stage { background: linear-gradient(135deg, #334155, #1e293b); border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button, select, input { font: inherit; color: inherit; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 4px 10px; }
+    button { cursor: pointer; }
+    label { display: inline-flex; gap: 6px; align-items: center; }
+</style>
+</head>
+<body>
+<header>
+    <h1>Widget examples</h1>
+    <p>Each card mounts a widget with <code>host.js</code>. Start a static server in this folder (<code>python3 -m http.server 8000</code>) and open this page over http. Calendar and weather get made-up data from <code>mock-data.js</code>.</p>
+</header>
+<main class="grid" id="cards"></main>
+
+<script type="module">
+    import { mountWidget } from './host.js';
+    import { mockEndpoints } from './mock-data.js';
+
+    const cards = [
+        {
+            title: 'Hello (the minimal widget)', dir: '../hello',
+            params: { name: 'friends' },
+            controls: [{ param: 'name', type: 'text' }, { param: 'show_visits', type: 'checkbox' }],
+        },
+        {
+            title: 'Clock, digital', dir: '../clock',
+            params: { style: 'digital', show_seconds: true },
+            controls: [{ param: 'hours', type: 'select', options: ['12', '24'] }, { param: 'show_seconds', type: 'checkbox' }],
+        },
+        {
+            title: 'Clock, analog', dir: '../clock',
+            params: { style: 'analog', background: '#0f766e' },
+            controls: [{ param: 'show_date', type: 'checkbox' }],
+        },
+        {
+            title: 'Calendar (mock data)', dir: '../calendar',
+            params: {},
+            fetch: true,
+            controls: [{ param: 'mode', type: 'select', options: ['list', 'month'] }],
+        },
+        {
+            title: 'Weather (mock data, ZIP code)', dir: '../weather',
+            params: { zip: '28401' },
+            fetch: true,
+            controls: [{ param: 'mode', type: 'select', options: ['current', '3-day', '7-day'] }, { param: 'units', type: 'select', options: ['fahrenheit', 'celsius'] }],
+        },
+        {
+            title: 'Weather (blank ZIP → uses api.location)', dir: '../weather',
+            params: { zip: '' },
+            fetch: true,
+            location: { name: 'Charlotte, NC', latitude: 35.23, longitude: -80.84, source: 'entity' },
+            controls: [],
+        },
+    ];
+
+    for (const card of cards) build(card);
+
+    function build(card) {
+        const el = document.createElement('section');
+        el.className = 'card';
+        el.innerHTML = '<h2></h2><div class="stage"></div><div class="controls"></div>';
+        el.querySelector('h2').textContent = card.title;
+        document.getElementById('cards').appendChild(el);
+        const stage = el.querySelector('.stage');
+        const controls = el.querySelector('.controls');
+
+        const state = { ...card.params };
+        let handle = null;
+        let failing = false;
+
+        async function start() {
+            handle?.dispose();
+            handle = null;
+            handle = await mountWidget(stage, card.dir, {
+                params: state,
+                instanceId: card.title,
+                location: card.location ?? null,
+                fetchEndpoint: card.fetch ? mockEndpoints({ fail: failing }) : undefined,
+            });
+        }
+
+        // Changing a parameter means unmounting (cleanup runs) and mounting again.
+        // That is exactly what a real host does when an editor changes a value.
+        for (const c of card.controls) {
+            const label = document.createElement('label');
+            label.append(c.param.replace(/_/g, ' ') + ' ');
+            let input;
+            if (c.type === 'select') {
+                input = document.createElement('select');
+                for (const o of c.options) input.add(new Option(o, o));
+            } else {
+                input = document.createElement('input');
+                input.type = c.type;
+            }
+            input.addEventListener('change', () => {
+                state[c.param] = c.type === 'checkbox' ? input.checked : input.value;
+                start();
+            });
+            label.append(input);
+            controls.append(label);
+            // Reflect the widget's own default once its manifest is loaded.
+            input.dataset.param = c.param;
+        }
+
+        if (card.fetch) {
+            const label = document.createElement('label');
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.addEventListener('change', () => { failing = box.checked; start(); });
+            label.append(box, ' simulate outage');
+            controls.append(label);
+        }
+
+        const stop = document.createElement('button');
+        stop.textContent = 'Unmount';
+        const again = document.createElement('button');
+        again.textContent = 'Mount';
+        stop.onclick = () => { handle?.dispose(); handle = null; };
+        again.onclick = start;
+        controls.append(stop, again);
+
+        start().then(() => {
+            // Fill the controls with the effective values (manifest defaults included).
+            for (const input of controls.querySelectorAll('[data-param]')) {
+                const def = handle.manifest.parameters?.[input.dataset.param];
+                const value = state[input.dataset.param] ?? def?.default;
+                if (input.type === 'checkbox') input.checked = !!value; else if (value !== undefined) input.value = value;
+            }
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minimal widget, no host library</title>
+<!--
+  The bare contract in one file: import a widget module, hand it a box, a
+  size, parameters and a tiny `api`, and keep the cleanup function.
+  ES modules need http(s), not file://. From this folder run:
+      python3 -m http.server 8000
+  then open http://localhost:8000/minimal.html
+-->
+<style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; }
+    #box { position: relative; width: 480px; height: 260px; }
+</style>
+<div id="box"></div>
+<script type="module">
+    import { mount } from '../clock/widget.js';
+
+    const cleanup = await mount(document.getElementById('box'), {
+        width: 480,
+        height: 260,
+        params: Object.freeze({
+            style: 'digital', hours: '12', show_seconds: true, show_date: true,
+            color: '#ffffff', background: '#000000', background_opacity: 0.6,
+        }),
+        api: Object.freeze({
+            mode: 'live',
+            locale: navigator.language,
+            location: null,
+            storage: { get: () => null, set() {}, remove() {} },
+            fetch: async () => { throw Object.assign(new Error('no data in this demo'), { reason: 'not_configured' }); },
+        }),
+    });
+
+    // Later (slide change, page teardown): cleanup();
+    window.addEventListener('pagehide', cleanup);
+</script>

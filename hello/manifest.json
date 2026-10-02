@@ -1,0 +1,15 @@
+{
+    "id": "hello",
+    "name": "Hello",
+    "version": "1.0.0",
+    "description": "The smallest useful widget: a greeting with a visit counter kept in api.storage.",
+    "entry": "widget.js",
+    "icon": "icon.png",
+    "defaultSize": { "w": 600, "h": 200 },
+    "parameters": {
+        "name":  { "type": "string", "label": "Who to greet", "default": "world", "maxLength": 40 },
+        "color": { "type": "color", "label": "Text color", "default": "#ffffff" },
+        "background": { "type": "color", "label": "Background", "default": "#1e40af" },
+        "show_visits": { "type": "boolean", "label": "Show visit counter", "default": true }
+    }
+}
