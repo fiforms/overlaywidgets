@@ -108,13 +108,13 @@ export function mount(el, { width, height, params, api }) {
             node('text', {
                 x: pad, y: y + rowH * 0.42, 'font-family': 'sans-serif', 'font-weight': 'bold',
                 'font-size': size, fill: accent,
-            }, svg, dateFormat.format(start));
+            }, svg, cap(dateFormat.format(start)));
             const end = lastDay(event);
             if (dayKey(end) !== dayKey(start)) {
                 node('text', {
                     x: pad, y: y + rowH * 0.42 + size * 1.15, 'font-family': 'sans-serif', 'font-weight': 'bold',
                     'font-size': size, fill: accent,
-                }, svg, `- ${dateFormat.format(end)}`);
+                }, svg, `- ${cap(dateFormat.format(end))}`);
             } else if (!event.all_day) {
                 node('text', {
                     x: pad, y: y + rowH * 0.42 + size * 1.15, 'font-family': 'sans-serif',
@@ -133,6 +133,13 @@ export function mount(el, { width, height, params, api }) {
         });
     }
 
+    // Spanish (and some other locales) return lowercase day/month names;
+    // capitalize each word except connectors like "de".
+    function cap(text) {
+        return text.replace(/(^|[\s.,])(\p{L})(\p{L}*)/gu, (m, sep, first, rest) =>
+            ['de', 'del'].includes(first + rest) && sep !== '' ? m : sep + first.toUpperCase() + rest);
+    }
+
     function month(top) {
         const now = new Date();
         const first = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -147,7 +154,7 @@ export function mount(el, { width, height, params, api }) {
             x: hasTitle ? width - pad : pad, y: hasTitle ? top - headerSize * 0.9 : top + headerSize,
             'text-anchor': hasTitle ? 'end' : 'start',
             'font-family': 'sans-serif', 'font-size': headerSize, fill: color, opacity: 0.8,
-        }, svg, new Intl.DateTimeFormat(api.locale, { month: 'long', year: 'numeric' }).format(now));
+        }, svg, cap(new Intl.DateTimeFormat(api.locale, { month: 'long', year: 'numeric' }).format(now)));
         if (!hasTitle) top += headerSize * 1.6;
 
         const dowH = headerSize * 1.6;
@@ -160,7 +167,7 @@ export function mount(el, { width, height, params, api }) {
             node('text', {
                 x: pad + cellW * d + cellW / 2, y: top + headerSize, 'text-anchor': 'middle',
                 'font-family': 'sans-serif', 'font-size': headerSize * 0.9, fill: accent,
-            }, svg, dow.format(sample));
+            }, svg, cap(dow.format(sample)));
         }
 
         // Each event appears on every day it spans.
