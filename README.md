@@ -300,6 +300,24 @@ export function mount(el, { width, height, params, api }) {
 
 Parameter or size changes never reach a running widget. The host unmounts it (running the cleanup) and mounts a fresh one, so you never need an "update" path.
 
+### Telling the host you're painted
+
+A slideshow keeps a slide off screen until everything on it has painted, so a slow widget doesn't pop in after the slide is already visible. By default the host treats your widget as ready when `mount` returns. If you paint real content later (typically after an `api.fetch`), say so:
+
+```js
+export const manualReady = true;      // top level of the module
+
+export function mount(el, { api, ... }) {
+    drawPlaceholderOrNothing();
+    load().then(() => {
+        draw();
+        api.ready?.();                // first real content is on screen
+    });
+}
+```
+
+Call `api.ready()` after the first successful draw, and also after you draw an error message, since that is as final as you will get. Calling it again is harmless. A widget that never calls it is shown anyway after about 8 seconds, so don't leave it out on purpose. Use `api.ready?.()` (with the `?.`) so the widget still works in a host that predates this.
+
 If `mount` throws or rejects, the host logs a warning and shows nothing. A widget should catch its own errors and draw a friendly message instead.
 
 ### The api object
@@ -384,6 +402,10 @@ Use it so one slide can show local information on every screen: the weather widg
 
 A string, the viewer's interface language (`'en'`, `'es'`, `'en-US'`). Use it for `Intl.DateTimeFormat` and `Intl.NumberFormat`, and to pick between translations you ship in the widget. Don't assume the value is a bare two-letter code: compare with `api.locale.startsWith('es')`.
 
+#### `api.ready()`
+
+Call once your first real content is drawn. Only meaningful if the module exports `manualReady = true`; see [Telling the host you're painted](#telling-the-host-youre-painted). Safe to call otherwise.
+
 #### `api.mode`
 
 - `'live'`: a real screen. Show data, run timers.
@@ -414,7 +436,7 @@ You can use widgets without any server, in any web page. A host has to do four t
 
 1. Fetch `manifest.json` and fill in parameter defaults.
 2. Create a box of the placement's size (`defaultSize` by default) and scale it to fit with CSS.
-3. `import()` the entry module and call `mount(box, { width, height, params, api })`, supplying `api.fetch`, `api.storage`, `api.location`, `api.locale` and `api.mode`.
+3. `import()` the entry module and call `mount(box, { width, height, params, api })`, supplying `api.fetch`, `api.storage`, `api.location`, `api.locale` and `api.mode`. A host that wants to wait for painting also supplies `api.ready()`, resolving when the widget calls it (or when `mount` returns, if the module doesn't export `manualReady = true`).
 4. Keep the function `mount` returns and call it when you remove the widget.
 
 ```js
@@ -453,7 +475,7 @@ The folders next to this file are complete widgets:
 |---|---|
 | [hello/](hello/) | The smallest useful widget: parameters, `api.storage`, `api.locale`, cleanup. |
 | [clock/](clock/) | Parameters of many types, SVG drawing, a timer aligned to the second, cleanup. No outside data. |
-| [calendar/](calendar/) | A whole-URL `ical` endpoint with an `allow` list, `api.locale`, an error state. |
+| [calendar/](calendar/) | A whole-URL `ical` endpoint with an `allow` list, `api.locale`, an error state, `manualReady`. |
 | [weather/](weather/) | Fixed-host `json` endpoints, runtime args, `api.location`, `api.mode`, retry timing. |
 
 And [examples/](examples/) shows how to use them in a standalone page:

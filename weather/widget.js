@@ -181,6 +181,10 @@ function symbol(parent, uid, kind, night, x, y, size) {
 
 // ── Widget ───────────────────────────────────────────────────────────────
 
+// Tell the host we paint after slow fetches: it calls api.ready() below
+// instead of treating us as ready when mount returns.
+export const manualReady = true;
+
 export function mount(el, { width, height, params, api }) {
     const text = TEXT[(api.locale || 'en').slice(0, 2)] ?? TEXT.en;
     const fahrenheit = params.units !== 'celsius';
@@ -397,6 +401,7 @@ export function mount(el, { width, height, params, api }) {
         } finally {
             if (!disposed) {
                 render();
+                api.ready?.();
                 timer = setTimeout(load, weather ? REFRESH_MS : RETRY_MS);
             }
         }

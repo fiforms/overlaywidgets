@@ -46,6 +46,10 @@ function lastDay(event) {
 }
 const dayKey = date => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
+// Tell the host we paint after a slow fetch: it calls api.ready() below
+// instead of treating us as ready when mount returns.
+export const manualReady = true;
+
 export function mount(el, { width, height, params, api }) {
     const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' }, el);
     const color = params.color || '#ffffff';
@@ -232,6 +236,7 @@ export function mount(el, { width, height, params, api }) {
             }
         }
         render();
+        api.ready?.();
     }
 
     render();

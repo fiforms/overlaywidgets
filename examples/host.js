@@ -77,6 +77,7 @@ export async function mountWidget(container, widgetDir, options = {}) {
         locale: options.locale ?? navigator.language,
         location: options.location ? Object.freeze({ ...options.location }) : null,
         storage: createStorage(`widget:${manifest.id}:${options.instanceId ?? 'default'}:`),
+        ready() {},   // this example host doesn't wait for painting
         async fetch(endpoint, args = {}) {
             if (!options.fetchEndpoint) throw new WidgetDataError('not_configured');
             const data = await options.fetchEndpoint(endpoint, args, params);
