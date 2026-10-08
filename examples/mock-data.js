@@ -21,6 +21,9 @@ const calendar = {
     name: 'Church Calendar',
     timezone: 'America/New_York',
     events: [
+        { uid: '5', title: 'Sabbath School teachers\' day', location: '', description: '', start: ymd(day(0)), end: ymd(day(1)), all_day: true },
+        { uid: '6', title: 'Choir practice', location: 'Sanctuary', description: '', start: at(0, 9), end: at(0, 10, 30), all_day: false },
+        { uid: '7', title: 'Food pantry', location: 'Fellowship hall', description: '', start: at(0, 13), end: at(0, 15), all_day: false },
         { uid: '1', title: 'Prayer meeting', location: 'Fellowship hall', description: '', start: at(1, 19), end: at(1, 20), all_day: false },
         { uid: '2', title: 'Community potluck', location: '', description: '', start: at(3, 12, 30), end: at(3, 14), all_day: false },
         // All-day events use plain dates, and `end` is exclusive.

@@ -1,11 +1,19 @@
 {
     "id": "calendar",
     "name": "Calendar",
-    "version": "1.0.2",
-    "description": "Upcoming events from a public calendar feed (ICS), as a list or a month grid.",
+    "version": "1.1.0",
+    "description": "Upcoming events from a public calendar feed (ICS), as a list, a month grid, or today's schedule.",
     "entry": "widget.js",
     "icon": "icon.png",
     "defaultSize": { "w": 800, "h": 600 },
+    "sizing": {
+        "by": "mode",
+        "modes": {
+            "list": { "aspect": { "min": 0.75, "max": 2.2 }, "minWidth": 0.2 },
+            "month": { "aspect": { "min": 1.1, "max": 1.8 }, "minWidth": 0.3 },
+            "today": { "aspect": { "min": 0.75, "max": 1.8 }, "minWidth": 0.25 }
+        }
+    },
     "parameters": {
         "ics": {
             "type": "url",
@@ -17,7 +25,7 @@
                 "https://outlook.live.com/owa/calendar/"
             ]
         },
-        "mode": { "type": "enum", "label": "Layout", "options": ["list", "month"], "default": "list" },
+        "mode": { "type": "enum", "label": "Layout", "options": ["list", "month", "today"], "default": "list" },
         "title": { "type": "string", "label": "Heading (blank = calendar name)", "maxLength": 80 },
         "max_events": { "type": "number", "label": "Events to show (list)", "min": 1, "max": 20, "step": 1, "default": 6 },
         "color": { "type": "color", "label": "Text color", "default": "#ffffff" },

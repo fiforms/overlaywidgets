@@ -53,13 +53,13 @@
             title: 'Calendar (mock data)', dir: '../calendar',
             params: {},
             fetch: true,
-            controls: [{ param: 'mode', type: 'select', options: ['list', 'month'] }],
+            controls: [{ param: 'mode', type: 'select', options: ['list', 'month', 'today'] }],
         },
         {
             title: 'Weather (mock data, ZIP code)', dir: '../weather',
             params: { zip: '28401' },
             fetch: true,
-            controls: [{ param: 'mode', type: 'select', options: ['current', '3-day', '7-day'] }, { param: 'units', type: 'select', options: ['fahrenheit', 'celsius'] }],
+            controls: [{ param: 'mode', type: 'select', options: ['current', '3-day', '7-day', 'chip'] }, { param: 'units', type: 'select', options: ['fahrenheit', 'celsius'] }],
         },
         {
             title: 'Weather (blank ZIP → uses api.location)', dir: '../weather',

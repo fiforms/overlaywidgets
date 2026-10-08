@@ -1,12 +1,19 @@
 {
     "id": "clock",
     "name": "Clock",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "A live digital or analog clock in the screen's local time.",
     "entry": "widget.js",
     "icon": "icon.png",
     "defaultSize": { "w": 480, "h": 260 },
     "aspectLocked": false,
+    "sizing": {
+        "by": "style",
+        "modes": {
+            "digital": { "aspect": { "min": 2, "max": 5 }, "minWidth": 0.12 },
+            "analog": { "aspect": { "min": 0.8, "max": 1.25 }, "minWidth": 0.08 }
+        }
+    },
     "parameters": {
         "style": { "type": "enum", "label": "Style", "options": ["digital", "analog"], "default": "digital" },
         "hours": { "type": "enum", "label": "Hours", "options": ["12", "24"], "default": "12" },

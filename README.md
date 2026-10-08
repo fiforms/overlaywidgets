@@ -124,12 +124,51 @@ my-widget/
 | `preview` | no | Path of a `.png`, `.webp` or `.jpg`. Used instead of the icon wherever a host can only show a still image. |
 | `defaultSize` | no | `{ "w", "h" }` in pixels, integers. `w` is 10–1920 and `h` is 10–1080. Default `{ "w": 400, "h": 300 }`. The size a new placement starts with. |
 | `aspectLocked` | no | `true` asks editors to keep the width:height ratio when resizing. Default `false`. |
+| `sizing` | no | The boxes the widget can be drawn in: an aspect-ratio range and a minimum width, optionally different for each value of a parameter such as `mode`. See [Sizing](#sizing). |
 | `usesLocation` | no | `true` declares that the widget reads [`api.location`](#apilocation) (the screen's own location). Hosts that export a widget's placement as static data, rather than running it live, use this to know they must supply a location with it. Default `false`. |
 | `parameters` | no | Values slide editors fill in. See below. |
 | `settings` | no | Values the host's administrator fills in once for everyone, such as an API key. See below. |
 | `endpoints` | no | Outside data requests the host may make for the widget. See below. |
 
 The coordinate space is the slide's, 1920 × 1080, so `defaultSize` is in slide pixels. A placement can be any size and position within it.
+
+### Sizing
+
+A widget that only looks right in certain shapes says so in `sizing`, and an editor uses it to limit how the placement can be resized.
+
+```json
+"sizing": {
+  "aspect": { "min": 1.5, "max": 4 },
+  "minWidth": 0.2,
+  "by": "mode",
+  "modes": {
+    "current": { "aspect": { "min": 0.8, "max": 1.6 }, "minWidth": 0.12 },
+    "7-day":   { "minWidth": 0.35 }
+  }
+}
+```
+
+| key | meaning |
+|---|---|
+| `aspect` | Allowed width ÷ height. `{ "min", "max" }`, each 0.05–20 and either may be left out, or a single number to allow exactly one ratio. |
+| `minWidth` | Smallest width, as a fraction of the slide's width (0–1], so `0.2` is 384 px of the 1920. |
+| `by` | Name of an `enum` parameter. Its current value picks an entry from `modes`. |
+| `modes` | Keys are options of the `by` parameter. An entry may hold `aspect` and `minWidth`, and replaces only the keys it names; the rest come from the top level. A value with no entry just uses the top level. |
+
+Every key is optional, and with no `sizing` any box is allowed. Heights aren't limited directly: `aspect` and `minWidth` together imply a smallest height.
+
+The coordinates are the slide's: an editor uses the fractions of 1920 × 1080 and keeps the placement inside them. `defaultSize` should satisfy the rules for the default parameter values.
+
+#### When the box doesn't fit
+
+Limits are advice to editors; a host can still hand `mount` any `width` and `height` (an old placement, a changed `mode`, an import, another host's rules). A widget must therefore handle a box outside its own `sizing` in the same way, so every widget fails alike:
+
+1. **Wrong aspect ratio.** Find the largest box with an allowed ratio that fits inside `width × height` (if the ratio is too wide, keep the height and narrow the width to `height × max`; if too tall, keep the width and shorten the height to `width ÷ min`) and draw only in it, centered in the given area. Leave the rest empty.
+2. **Too small.** If the width is under `minWidth × 1920` (use the width of the box from step 1), don't try to lay out the content. Write the text `SIZE TOO SMALL` at the box's center in a readable size, in `sans-serif` with a contrasting color. The text doesn't have to fit in the box: set `el.style.overflow = 'visible'` and `overflow: visible` on your `<svg>` so it isn't clipped, and anchor it at the center.
+
+Check in this order: aspect first, because minimum width applies to the fitted box. Resolve `sizing` for the current `mode` the same way the editor does: take the top level, then the entry in `modes` for `params[by]`.
+
+[hello/widget.js](hello/widget.js) is a complete version of this rule to copy.
 
 ### Parameters
 
@@ -415,7 +454,7 @@ Call once your first real content is drawn. Only meaningful if the module export
 
 - Widgets are drawn above the other layers of the slide.
 - Where a host can only show a still image (thumbnails, slide-deck exports), it shows your `preview` image, or `icon` if there is none, scaled into the widget's box. Make `preview.png` look like the widget at its `defaultSize`.
-- `el` clips its contents (`overflow: hidden`), and the placement may be partly transparent.
+- `el` clips its contents (`overflow: hidden`) unless you change that on `el.style` (see [Sizing](#sizing)), and the placement may be partly transparent.
 - A host may run your module again on each page load, so keep top-level code free of side effects. Do all the work in `mount`.
 
 ## Rules for widget code

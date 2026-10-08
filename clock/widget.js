@@ -13,9 +13,33 @@ function node(name, attrs = {}, parent = null) {
     return el;
 }
 
-export function mount(el, { width, height, params, api }) {
+// Keep in step with "sizing" in manifest.json.
+const SIZING = {
+    digital: { aspect: { min: 2, max: 5 }, minWidth: 0.12 },
+    analog: { aspect: { min: 0.8, max: 1.25 }, minWidth: 0.08 },
+};
+
+export function mount(el, { width: areaW, height: areaH, params, api }) {
+    // Outside our allowed shapes, draw in the largest allowed box, centered
+    // in the area we were given; if that is too narrow, just say so.
+    const rule = SIZING[params.style] ?? SIZING.digital;
+    const width = Math.min(areaW, areaH * rule.aspect.max);
+    const height = Math.min(areaH, width / rule.aspect.min);
+    if (width < rule.minWidth * 1920) {
+        el.style.overflow = 'visible';
+        const warn = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%', style: 'overflow: visible' }, el);
+        node('text', {
+            x: areaW / 2, y: areaH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+            'font-family': 'sans-serif', 'font-weight': 'bold', 'font-size': 28, fill: '#ef4444',
+        }, warn, 'SIZE TOO SMALL');
+        return () => {};
+    }
+
     const color = params.color || '#ffffff';
-    const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' }, el);
+    const outer = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%' }, el);
+    const svg = node('svg', {
+        x: (areaW - width) / 2, y: (areaH - height) / 2, width, height, viewBox: `0 0 ${width} ${height}`,
+    }, outer);
     const opacity = Number(params.background_opacity ?? 0.4);
     if (opacity > 0) {
         node('rect', {
@@ -42,11 +66,46 @@ export function mount(el, { width, height, params, api }) {
     return () => clearTimeout(timer);
 }
 
+// Width, per 1px of font size, of the widest of `samples`. Measured in the
+// real font where the browser can (the clock's digits are tabular, so this is
+// stable), with a generous estimate where it can't.
+function widest(svg, samples, bold) {
+    const probe = node('text', {
+        'font-family': 'sans-serif', 'font-size': 100, 'font-weight': bold ? 'bold' : 'normal',
+        style: 'font-variant-numeric: tabular-nums', visibility: 'hidden',
+    }, svg);
+    let max = 0;
+    let chars = 0;
+    for (const sample of samples) {
+        probe.textContent = sample;
+        chars = Math.max(chars, sample.length);
+        try { max = Math.max(max, probe.getComputedTextLength() / 100); } catch { /* not rendered yet */ }
+    }
+    probe.remove();
+    return max || chars * 0.65;
+}
+
 function digital(svg, width, height, params, color, locale) {
     const hasDate = params.show_date;
-    const timeSize = Math.min(height * (hasDate ? 0.42 : 0.6), width / (params.show_seconds ? 5.2 : 3.6));
-    const dateSize = Math.min(height * 0.14, width / 12);
-    const timeY = hasDate ? height / 2 - dateSize * 0.2 : height / 2;
+    const pad = Math.min(width, height) * 0.06;
+    const timeFormat = new Intl.DateTimeFormat(locale, {
+        hour: 'numeric', minute: '2-digit', second: params.show_seconds ? '2-digit' : undefined,
+        hour12: params.hours !== '24',
+    });
+    const dateFormat = new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric' });
+
+    // Size the text from the widest string it will ever show, so it always
+    // fits the box and doesn't change size as the digits change.
+    const timeWidth = widest(svg, [0, 1, 10, 12, 13, 22].map(h => timeFormat.format(new Date(2000, 0, 1, h, 8, 8))), true);
+    const days = Array.from({ length: 92 }, (_, i) => dateFormat.format(new Date(2000, 0, 1 + i * 4)));
+    const dateWidth = hasDate ? widest(svg, days, false) : 0;
+
+    const room = width - pad * 2;
+    const timeSize = Math.min(height * (hasDate ? 0.42 : 0.6), room / timeWidth);
+    const dateSize = Math.min(height * 0.14, room / dateWidth, timeSize * 0.45);
+    // Centre the block (time, then date) in the box.
+    const blockH = hasDate ? timeSize * 1.05 + dateSize * 1.2 : timeSize;
+    const timeY = (height - blockH) / 2 + timeSize * 0.5;
 
     const time = node('text', {
         x: width / 2, y: timeY, 'text-anchor': 'middle', 'dominant-baseline': 'central',
@@ -57,12 +116,6 @@ function digital(svg, width, height, params, color, locale) {
         x: width / 2, y: timeY + timeSize * 0.55 + dateSize, 'text-anchor': 'middle',
         'font-family': 'sans-serif', 'font-size': dateSize, fill: color, opacity: 0.85,
     }, svg) : null;
-
-    const timeFormat = new Intl.DateTimeFormat(locale, {
-        hour: 'numeric', minute: '2-digit', second: params.show_seconds ? '2-digit' : undefined,
-        hour12: params.hours !== '24',
-    });
-    const dateFormat = new Intl.DateTimeFormat(locale, { weekday: 'long', month: 'long', day: 'numeric' });
 
     return now => {
         time.textContent = timeFormat.format(now);

@@ -185,11 +185,39 @@ function symbol(parent, uid, kind, night, x, y, size) {
 // instead of treating us as ready when mount returns.
 export const manualReady = true;
 
-export function mount(el, { width, height, params, api }) {
+// Keep in step with "sizing" in manifest.json.
+const SIZING = {
+    current: { aspect: { min: 2, max: 3.5 }, minWidth: 0.3 },
+    '3-day': { aspect: { min: 2, max: 3.5 }, minWidth: 0.35 },
+    '7-day': { aspect: { min: 2.5, max: 4.5 }, minWidth: 0.4 },
+    chip: { aspect: { min: 0.5, max: 1.25 }, minWidth: 0.05 },
+};
+
+export function mount(el, { width: areaW, height: areaH, params, api }) {
+    // Outside our allowed shapes, draw in the largest allowed box, centered
+    // in the area we were given; if that is too narrow, just say so.
+    const rule = SIZING[params.mode] ?? SIZING['3-day'];
+    const boxW = Math.min(areaW, areaH * rule.aspect.max);
+    const boxH = Math.min(areaH, boxW / rule.aspect.min);
+    if (boxW < rule.minWidth * 1920) {
+        el.style.overflow = 'visible';
+        const warn = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%', style: 'overflow: visible' }, el);
+        node('text', {
+            x: areaW / 2, y: areaH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+            'font-family': 'sans-serif', 'font-weight': 'bold', 'font-size': 28, fill: '#ef4444',
+        }, warn, 'SIZE TOO SMALL');
+        api.ready?.();
+        return () => {};
+    }
+    const width = boxW;
+    const height = boxH;
     const text = TEXT[(api.locale || 'en').slice(0, 2)] ?? TEXT.en;
     const fahrenheit = params.units !== 'celsius';
     const color = params.color || '#ffffff';
-    const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' }, el);
+    const outer = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%' }, el);
+    const svg = node('svg', {
+        x: (areaW - width) / 2, y: (areaH - height) / 2, width, height, viewBox: `0 0 ${width} ${height}`,
+    }, outer);
     const uid = `wx${Math.random().toString(36).slice(2, 8)}`;
     const pad = Math.min(width, height) * 0.06;
     // Blank ZIP = use the screen's location (api.location).
@@ -213,6 +241,15 @@ export function mount(el, { width, height, params, api }) {
             node('rect', { width, height, rx: Math.min(width, height) * 0.06, fill: params.background || '#0c4a6e', 'fill-opacity': opacity }, svg);
         }
 
+        if (!weather && params.mode === 'chip') {
+            // No room for a message; a dash says "nothing yet".
+            node('text', {
+                x: width / 2, y: height / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+                'font-family': 'sans-serif', 'font-weight': 'bold', 'font-size': Math.min(width, height) * 0.4, fill: color, opacity: 0.6,
+            }, svg, '–');
+            return;
+        }
+
         if (!weather) {
             // Word-wrapped, centred.
             const size = Math.min(height * 0.1, width * 0.05);
@@ -230,6 +267,9 @@ export function mount(el, { width, height, params, api }) {
             }, svg, line));
             return;
         }
+
+        // The chip is too small for the credit line or the editor hint.
+        if (params.mode === 'chip') return chip();
 
         if (params.mode === 'current') current(0, height);
         else forecast(params.mode === '7-day' ? 7 : 3);
@@ -314,6 +354,22 @@ export function mount(el, { width, height, params, api }) {
                 'font-size': lineSize, fill: color, opacity: 0.7,
             }, svg, fit(name, lineSize, width * 0.42));
         }
+    }
+
+    // Just the condition icon with the temperature underneath.
+    function chip() {
+        const c = weather.current;
+        const label = degrees(c.temperature_2m);
+        const roomW = width - pad * 2;
+        const roomH = height - pad * 2;
+        const tempSize = Math.min(roomH * 0.3, roomW / (label.length * 0.62));
+        const iconSize = Math.min(roomW, roomH - tempSize * 1.15);
+        const top = (height - iconSize - tempSize * 1.15) / 2;
+        symbol(svg, uid, classify(c.weather_code)[1], c.is_day === 0, (width - iconSize) / 2, top, iconSize);
+        node('text', {
+            x: width / 2, y: top + iconSize + tempSize * 0.95, 'text-anchor': 'middle', 'font-family': 'sans-serif',
+            'font-weight': 'bold', 'font-size': tempSize, fill: color,
+        }, svg, label);
     }
 
     function forecast(days) {

@@ -50,8 +50,34 @@ const dayKey = date => `${date.getFullYear()}-${date.getMonth()}-${date.getDate(
 // instead of treating us as ready when mount returns.
 export const manualReady = true;
 
-export function mount(el, { width, height, params, api }) {
-    const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, width: '100%', height: '100%' }, el);
+// Keep in step with "sizing" in manifest.json.
+const SIZING = {
+    list: { aspect: { min: 0.75, max: 2.2 }, minWidth: 0.2 },
+    month: { aspect: { min: 1.1, max: 1.8 }, minWidth: 0.3 },
+    today: { aspect: { min: 0.75, max: 1.8 }, minWidth: 0.25 },
+};
+
+export function mount(el, { width: areaW, height: areaH, params, api }) {
+    // Outside our allowed shapes, draw in the largest allowed box, centered
+    // in the area we were given; if that is too narrow, just say so.
+    const rule = SIZING[params.mode] ?? SIZING.list;
+    const width = Math.min(areaW, areaH * rule.aspect.max);
+    const height = Math.min(areaH, width / rule.aspect.min);
+    if (width < rule.minWidth * 1920) {
+        el.style.overflow = 'visible';
+        const warn = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%', style: 'overflow: visible' }, el);
+        node('text', {
+            x: areaW / 2, y: areaH / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+            'font-family': 'sans-serif', 'font-weight': 'bold', 'font-size': 28, fill: '#ef4444',
+        }, warn, 'SIZE TOO SMALL');
+        api.ready?.();
+        return () => {};
+    }
+
+    const outer = node('svg', { viewBox: `0 0 ${areaW} ${areaH}`, width: '100%', height: '100%' }, el);
+    const svg = node('svg', {
+        x: (areaW - width) / 2, y: (areaH - height) / 2, width, height, viewBox: `0 0 ${width} ${height}`,
+    }, outer);
     const color = params.color || '#ffffff';
     const accent = params.accent || '#fbbf24';
     const pad = Math.min(width, height) * 0.05;
@@ -87,6 +113,7 @@ export function mount(el, { width, height, params, api }) {
         if (!payload) return;
 
         if (params.mode === 'month') month(top);
+        else if (params.mode === 'today') today(top);
         else list(top);
     }
 
@@ -135,6 +162,126 @@ export function mount(el, { width, height, params, api }) {
                 }, svg, fit(event.location, size * 0.8, width - pad * 2 - dateW));
             }
         });
+    }
+
+    // Everything happening today. All-day events (and ones that began
+    // before today) are inverted banners at the top, then the timed events
+    // in order. The text size is chosen so that however many there are, from
+    // none to a screenful, they fill the space without overflowing; past
+    // that, the rest becomes "+N more".
+    function today(top) {
+        const es = api.locale?.startsWith('es');
+        const now = new Date();
+        const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        // Date header: beside the heading when there is one, else its own row.
+        const headerSize = Math.min(height * 0.06, width * 0.04);
+        const hasTitle = top > pad;
+        node('text', {
+            x: hasTitle ? width - pad : pad, y: hasTitle ? top - headerSize * 0.9 : top + headerSize,
+            'text-anchor': hasTitle ? 'end' : 'start', 'font-family': 'sans-serif', 'font-size': headerSize,
+            'font-weight': hasTitle ? 'normal' : 'bold', fill: hasTitle ? color : accent, opacity: hasTitle ? 0.8 : 1,
+        }, svg, cap(new Intl.DateTimeFormat(api.locale, { weekday: 'long', month: 'long', day: 'numeric' }).format(now)));
+        if (!hasTitle) top += headerSize * 1.7;
+
+        const events = payload.events
+            .filter(e => parseStart(e) < dayEnd && parseEnd(e) > dayStart)
+            .sort((a, b) => parseStart(a) - parseStart(b));
+        const banners = events.filter(e => e.all_day || parseStart(e) < dayStart);
+        const timed = events.filter(e => !banners.includes(e));
+        const area = height - top - pad;
+
+        if (!events.length) {
+            const size = Math.min(height * 0.07, width * 0.05);
+            node('text', {
+                x: width / 2, y: top + area / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+                'font-family': 'sans-serif', 'font-size': size, fill: color, opacity: 0.7,
+            }, svg, es ? 'No hay eventos hoy' : 'No events today');
+            return;
+        }
+
+        // Row heights in units of the text size.
+        const BANNER = 1.9;
+        const rows = [...banners.map(e => ({ e, banner: true })), ...timed.map(e => ({ e, banner: false }))];
+        const maxSize = Math.min(width * 0.05, height * 0.075);
+        const minSize = width * 0.028;
+        let twoLine = true;
+        const units = two => banners.length * BANNER + timed.length * (two ? 2.5 : 1.55);
+        let size = Math.min(maxSize, area / units(true));
+        if (size < minSize) {
+            twoLine = false;
+            size = Math.min(maxSize, area / units(false));
+        }
+        let shown = rows;
+        let more = 0;
+        if (size < minSize) {
+            // Too many for a readable size: show what fits, then a count.
+            size = minSize;
+            const rowH = r => size * (r.banner ? BANNER : 1.55);
+            let used = 0;
+            shown = [];
+            for (const r of rows) {
+                if (used + rowH(r) > area - size * 1.55) break;
+                used += rowH(r);
+                shown.push(r);
+            }
+            more = rows.length - shown.length;
+        }
+
+        const timeFormat = new Intl.DateTimeFormat(api.locale, { hour: 'numeric', minute: '2-digit' });
+        const timeW = size * 0.62 * Math.max(...[10, 22].map(h => timeFormat.format(new Date(2000, 0, 1, h, 30)).length)) + size * 0.8;
+        const innerW = width - pad * 2;
+        const dark = params.background || '#0f172a';
+        let y = top;
+
+        for (const { e, banner } of shown) {
+            const ended = !banner && parseEnd(e) <= now;
+            if (banner) {
+                const h = size * 1.6;
+                const until = e.all_day ? '' : ` · ${es ? 'hasta' : 'until'} ${timeFormat.format(parseEnd(e))}`;
+                node('rect', { x: pad, y, width: innerW, height: h, rx: h * 0.3, fill: color }, svg);
+                node('text', {
+                    x: pad + size * 0.6, y: y + h / 2, 'dominant-baseline': 'central', 'font-family': 'sans-serif',
+                    'font-weight': 'bold', 'font-size': size, fill: dark,
+                }, svg, fit(`${e.title || '—'}${until}`, size, innerW - size * 1.2));
+                y += size * BANNER;
+                continue;
+            }
+
+            const rowH = size * (twoLine ? 2.5 : 1.55);
+            const base = y + size * (twoLine ? 1.0 : 1.05);
+            const titleX = pad + timeW;
+            const g = node('g', { opacity: ended ? 0.45 : 1 }, svg);
+            node('text', {
+                x: pad, y: base, 'font-family': 'sans-serif', 'font-weight': 'bold', 'font-size': size, fill: accent,
+            }, g, timeFormat.format(parseStart(e)));
+            if (twoLine) {
+                node('text', {
+                    x: titleX, y: base, 'font-family': 'sans-serif', 'font-size': size, fill: color,
+                }, g, fit(e.title || '—', size, width - pad - titleX));
+                node('text', {
+                    x: pad, y: base + size * 1.15, 'font-family': 'sans-serif', 'font-size': size * 0.8, fill: color, opacity: 0.7,
+                }, g, `– ${timeFormat.format(parseEnd(e))}`);
+                if (e.location) {
+                    node('text', {
+                        x: titleX, y: base + size * 1.15, 'font-family': 'sans-serif', 'font-size': size * 0.8, fill: color, opacity: 0.7,
+                    }, g, fit(e.location, size * 0.8, width - pad - titleX));
+                }
+            } else {
+                node('text', {
+                    x: titleX, y: base, 'font-family': 'sans-serif', 'font-size': size, fill: color,
+                }, g, fit(e.location ? `${e.title || '—'} · ${e.location}` : (e.title || '—'), size, width - pad - titleX));
+            }
+            y += rowH;
+        }
+
+        if (more) {
+            node('text', {
+                x: pad, y: y + size * 1.05, 'font-family': 'sans-serif', 'font-size': size, fill: accent, opacity: 0.9,
+            }, svg, es ? `+${more} más` : `+${more} more`);
+        }
     }
 
     // Spanish (and some other locales) return lowercase day/month names;
