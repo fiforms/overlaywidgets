@@ -1,7 +1,7 @@
 {
     "id": "calendar",
     "name": "Calendar",
-    "version": "1.1.0",
+    "version": "1.2.1",
     "description": "Upcoming events from a public calendar feed (ICS), as a list, a month grid, or today's schedule.",
     "entry": "widget.js",
     "icon": "icon.png",

@@ -83,6 +83,9 @@ export function mount(el, { width: areaW, height: areaH, params, api }) {
     const pad = Math.min(width, height) * 0.05;
     let payload = null;
     let message = null;
+    // Right edge of the heading as drawn (estimated, bold), so a label that
+    // would collide with it can move to its own line.
+    let titleEnd = 0;
     let disposed = false;
 
     function render() {
@@ -94,7 +97,9 @@ export function mount(el, { width: areaW, height: areaH, params, api }) {
 
         const titleSize = Math.min(height * 0.09, width * 0.06);
         const title = params.title || payload?.name || '';
+        titleEnd = 0;
         if (title) {
+            titleEnd = Math.min(width - pad, pad + title.length * titleSize * 0.62);
             node('text', {
                 x: pad, y: pad + titleSize * 0.85, 'font-family': 'sans-serif', 'font-weight': 'bold',
                 'font-size': titleSize, fill: accent,
@@ -178,12 +183,13 @@ export function mount(el, { width: areaW, height: areaH, params, api }) {
 
         // Date header: beside the heading when there is one, else its own row.
         const headerSize = Math.min(height * 0.06, width * 0.04);
-        const hasTitle = top > pad;
+        const dateText = cap(new Intl.DateTimeFormat(api.locale, { weekday: 'long', month: 'long', day: 'numeric' }).format(now));
+        const hasTitle = top > pad && titleEnd + headerSize + dateText.length * headerSize * 0.55 <= width - pad;
         node('text', {
             x: hasTitle ? width - pad : pad, y: hasTitle ? top - headerSize * 0.9 : top + headerSize,
             'text-anchor': hasTitle ? 'end' : 'start', 'font-family': 'sans-serif', 'font-size': headerSize,
             'font-weight': hasTitle ? 'normal' : 'bold', fill: hasTitle ? color : accent, opacity: hasTitle ? 0.8 : 1,
-        }, svg, cap(new Intl.DateTimeFormat(api.locale, { weekday: 'long', month: 'long', day: 'numeric' }).format(now)));
+        }, svg, dateText);
         if (!hasTitle) top += headerSize * 1.7;
 
         const events = payload.events
@@ -300,12 +306,13 @@ export function mount(el, { width: areaW, height: areaH, params, api }) {
 
         // Month name: beside the heading when there is one, else its own row.
         const headerSize = Math.min(height * 0.05, width * 0.03);
-        const hasTitle = top > pad;
+        const monthName = cap(new Intl.DateTimeFormat(api.locale, { month: 'long', year: 'numeric' }).format(now));
+        const hasTitle = top > pad && titleEnd + headerSize + monthName.length * headerSize * 0.55 <= width - pad;
         node('text', {
             x: hasTitle ? width - pad : pad, y: hasTitle ? top - headerSize * 0.9 : top + headerSize,
             'text-anchor': hasTitle ? 'end' : 'start',
             'font-family': 'sans-serif', 'font-size': headerSize, fill: color, opacity: 0.8,
-        }, svg, cap(new Intl.DateTimeFormat(api.locale, { month: 'long', year: 'numeric' }).format(now)));
+        }, svg, monthName);
         if (!hasTitle) top += headerSize * 1.6;
 
         const dowH = headerSize * 1.6;
